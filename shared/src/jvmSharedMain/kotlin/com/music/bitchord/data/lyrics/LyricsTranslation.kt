@@ -26,6 +26,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.FormBody
@@ -43,6 +46,64 @@ import java.io.IOException
  * it and the feature can never grow without limit.
  */
 object LyricsTranslation {
+
+    /** Gemini API key for AI-powered musical lyrics translation */
+    @Volatile
+    var geminiApiKey: String? = System.getenv("GEMINI_API_KEY")
+
+    private suspend fun requestGeminiBatch(
+        batch: Batch,
+        target: String,
+        apiKey: String,
+    ): BatchAnswer? {
+        val targetLangName = if (target.startsWith("ko", ignoreCase = true)) "Korean" else target
+        val prompt = """
+            Translate the following song lyrics into $targetLangName.
+            Rules:
+            1. Provide natural, emotional, and poetic translations suitable for song lyrics.
+            2. Preserve ALL delimiter markers (e.g., \uE0000001\uE001) exactly in place between the lines. Do not omit or change any marker.
+            3. Return ONLY the translated lyrics with delimiters. No introductory or explanatory text.
+
+            ${batch.payload}
+        """.trimIndent()
+
+        val jsonPayload = buildString {
+            append("""{"contents":[{"parts":[{"text":""")
+            append(json.encodeToString(prompt))
+            append("""}]}]}""")
+        }
+
+        val mediaType = "application/json; charset=utf-8".toMediaType()
+        val body = jsonPayload.toRequestBody(mediaType)
+        val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$apiKey"
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", "BitChord/1.8")
+            .post(body)
+            .build()
+
+        val response = try {
+            client.newCall(request).awaitBody()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            return null
+        }
+
+        return runCatching {
+            val root = json.parseToJsonElement(response).jsonObject
+            val candidates = root["candidates"]?.jsonArray
+            val text = candidates?.getOrNull(0)?.jsonObject
+                ?.get("content")?.jsonObject
+                ?.get("parts")?.jsonArray?.getOrNull(0)?.jsonObject
+                ?.get("text")?.jsonPrimitive?.contentOrNull.orEmpty()
+
+            val parts = text.split(markerRegex).map(String::trim)
+            if (parts.size != batch.slots.size || parts.any { it.isBlank() }) return@runCatching null
+            BatchAnswer(parts, "auto", batch.payload.length)
+        }.getOrNull()
+    }
+
     sealed interface Result {
         data class Translated(
             val lines: List<LyricLine>,
@@ -341,6 +402,11 @@ object LyricsTranslation {
         target: String,
         sourceLanguage: String = "auto",
     ): BatchAnswer? {
+        val apiKey = geminiApiKey?.trim()?.takeIf { it.isNotEmpty() }
+        if (apiKey != null) {
+            val geminiAnswer = requestGeminiBatch(batch, target, apiKey)
+            if (geminiAnswer != null) return geminiAnswer
+        }
         val body = FormBody.Builder()
             .add("client", "dict-chrome-ex")
             .add("sl", sourceLanguage)
