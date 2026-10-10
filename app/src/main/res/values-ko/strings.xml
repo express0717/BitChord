@@ -1013,4 +1013,6 @@
     <string name="spotify_import_empty_playlist">この플레이리스트に노래はありません</string>
     <string name="spotify_library_subtitle">あなたの Spotify 플레이리스트</string>
     <string name="korean">한국어</string>
+    <string name="lyrics_original_title">원래 제목으로 가사 검색</string>
+    <string name="lyrics_original_title_desc">가사를 검색하기 전에 YouTube 원래 제목으로 복원합니다</string>
 </resources>

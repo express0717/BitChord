@@ -1128,4 +1128,6 @@
     <string name="spotify_import_empty_playlist">No songs in this playlist</string>
     <string name="spotify_library_subtitle">Your Spotify playlists</string>
     <string name="korean">Korean</string>
+    <string name="lyrics_original_title">Search lyrics with original title</string>
+    <string name="lyrics_original_title_desc">Restore original YouTube title before searching lyrics</string>
 </resources>

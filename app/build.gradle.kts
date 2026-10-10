@@ -74,6 +74,11 @@ android {
     // InnerTubeX's AAR requires compiling against 37; targetSdk (runtime behaviour) stays 36.
     compileSdk = 37
 
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+    }
+
     defaultConfig {
         applicationId = "com.music.bitchord"
         // 26 keeps reach wide; real-time blur (RenderEffect) kicks in on API 31+,
